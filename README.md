@@ -36,6 +36,8 @@ tests/
 ├── Mocks/
 │   └── BurgerPictureMockUp.spec.ts
 
+in Addition to Screanshot for BurgerPictureMockUp.spec.ts test results after changing the burger photos
+
 **Note:**
 At the beginning of the project (inside Test_Data.ts), you will find the global TestTimeOut configuration.
 This parameter controls the default timeout for all test cases, and is currently set to:
