@@ -33,7 +33,8 @@ tests/
 ├── Test5.spec.ts           
 ├── Test6.spec.ts             
 ├── Test7.spec.ts             
-├── BurgerPictureMockUp.spec.ts       
+├── Mocks/
+│   └── BurgerPictureMockUp.spec.ts
 
 **Note:**
 At the beginning of the project (inside Test_Data.ts), you will find the global TestTimeOut configuration.
