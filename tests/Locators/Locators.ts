@@ -57,17 +57,19 @@ export const CheckoutLocators = {
     PostalCodeInput: '//*[@id="PostalCode"]',
     confirmInput: '//*[@id="headlessui-dialog-panel-:r1p:"]/div[3]/button[1]',
     CloseButton: '//*[@id="headlessui-dialog-panel-:r1p:"]/div[3]/button[2]',
-    CardErrorMessage: '//*[@id="cardNumber-error-msg"]',
     VisaReflected: '//*[@id="headlessui-label-:r1j:"]/div/span[1]',
     SubTotalLocator: '//*[@id="__next"]/div[2]/main/div[2]/div[2]/div/dl/div[1]/dd',
     TotalPriceAtCheckoutLocator: '//*[@id="__next"]/div[2]/main/div[2]/div[2]/div/dl/div[4]/dd',
     SignInPasswordInput: '//*[@id="Password"]',
     SignInEmailInput: '//*[@id="UserName"]',
     OrderSummaryRoot: 'getByTestId("page-checkout:order-summary")',
-    CheckoutTableRows: 'xpath=//div[@data-testid="page-checkout-order-summary"]//table//tbody/tr',
-    CheckoutItemName: 'xpath=.//td[contains(@class, "h5") and contains(@class, "block")]',
-    CheckoutItemPrice: 'xpath=.//td[contains(@class, "block") and contains(@class,"px-2")]'
+    LocationDetailsLocator: '//*[@id="CheckoutForm"]/div[1]/address',
+    CheckoutRows: '//*[@id="CheckoutForm"]/div[4]/table/tbody/tr',
+    CheckoutItemName: './/td[2]',
+    CheckoutItemPrice: './/td[3]',
+    CardErrorMessage: '//*[@id="cardNumber-error-msg"]',
 }
+
 
 
 

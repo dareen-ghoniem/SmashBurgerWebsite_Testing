@@ -1,100 +1,112 @@
-import { test, expect } from '@playwright/test';
-import { Home } from './Home/Home';
-import { Menu } from './Menu/Menu';
-import { Cart } from './Cart/Cart';  
-import { HomeLocators } from './Locators/Locators';
-import { Menu_CetegoryLocators } from './Locators/Locators';
-import { Menu_ItemLocators } from './Locators/Locators';
-import { CartLocators } from './Locators/Locators';
-import { CheckoutLocators } from './Locators/Locators';
-import { Checkout } from './Checkout/Checkout';
-import { OrderConfirmation } from './OrderConfirmation/OrderConfirmation';
-//import { OrderConfirmation } from './OrderConfirmation/OrderConfirmation';
-import { OrderConfirmationLocators } from './Locators/Locators';
+import { test, expect } from './Fixtures.ts';
 
-// Global variables to store data calculated during runtime
-let startTime: number;
-let endTime: number;
-let navigationTime: number;
-let finalUrl: string;
+test(
+  '@regression @checkout Basic scenario: add item to cart, validate cart, checkout, and place order',
+  {
+    annotation: [
+      {
+        type: 'author',
+        description: 'Dareen Ghoniem'
 
-let ADD_TO_ORDER_BUTTON: any='//*[@id="__next"]/div[2]/main/div[2]/div/div/form/div[2]/div/button';
+      },
+      {
+        type: 'discription',
+        description:
+          'This test covers the whole basic user flow of adding an item to the cart, validating the cart contents and subtotal, proceeding to checkout, filling in payment details, and successfully placing an order.'
+      },
+      {
+        type: 'preconditions',
+        description:
+          'User is able to reach Smashburger dev site, navigate the menu, select a location, and add items.'
+      },
+      {
+        type: 'expectedResults',
+        description:
+          'Item is added correctly, cart subtotal matches expected total, checkout info and items match cart, card entry succeeds, order is placed.'
+      }
+    ]
+  },
 
+  async ({ page, home, menu, cart, checkout, confirm, menu_cetegory_locators, menu_item_locators }, testInfo) => {
 
-test('Smashburger create your own order now', async ({ page }) => {
+    // -------------------------------------------------------------------------
+    // Test Data & Variables
+    // -------------------------------------------------------------------------
+    let PriceInMenu: number;
+    let expectedSubTotal: number;
+    const ItemSelectionsNumber: number[] = [];
+    const ItemSelectedNames: string[] = [];
 
-  test.setTimeout(60000);
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
+    let CartItems = { names: [] as string[], prices: [] as number[] };
 
-  // Capture start time
-  startTime = Date.now();
-
-  await page.goto('https://dev.smashburger.com/');
-
-   const expectedItems: string[] = []; // runtime item memory
-
-  //new page object model classes
-  const home = new Home();
-  const MyMenu = new Menu();
-  const MyCart = new Cart();
-  const MyCheckout = new Checkout();
-  const MyOrderConfirmation = new OrderConfirmation();
-
-  // Use the page object model methods
-  await home.StartOrder(page);
-  await home.PickLocation(page,'80246');
-  //menu actions
-  await MyMenu.SelectCategory(page,Menu_CetegoryLocators.Smashburgers);
-  await MyMenu.SelectItem(page,Menu_ItemLocators.SMOKED_BRISKET_BACON_SMASH);
-  const price= await MyMenu.CalculatePrice(page);
-  const item1 = await MyMenu.AddToOrder(page);
-  expectedItems.push(item1);
-  await MyMenu.ReturnToMenu(page);
-  //Cart actions
-  await MyMenu.GoToCart(page);
-  await page.waitForTimeout(4000);
-  await MyCart.VerifyTotalPrice(page,price);
-  await MyCart.GetCartItems(page);
-  await MyCart.Checkout(page);
-  //Checkout actions
-  await MyCheckout.VerifyCheckoutPageLoaded(page);
-  await MyCheckout.SignInDuringCheckout(page,'dareenghoniem141@yahoo.com','D1234567m_');
-  //await MyCheckout.FillCheckoutPersonalDetails(page,'Dareen','Wafik','dareenghoniem14@yahoo.com','3035551236','D1234567m_')
-  await MyCheckout.FillCheckoutPaymentDetails(page,'4727 8573 1154 5385','01/29','476','80246');
-  await page.waitForTimeout(2000);
-  await MyCheckout.VerifyCardEnteredCorrectly(page);
-  await MyCheckout.CheckCheckoutErrors(page);
-  await MyCheckout.PlaceOrder(page);
-  await page.waitForTimeout(10000);
-  await MyOrderConfirmation.OrderPlacedSuccessfully(page);
-  //await MyOrderConfirmation.VerifyLocationContains(page,'GLENDALE');
-
-  
-  //await MyCart.VerifyCart(page,expectedItems);
-
-  //Cart.VerifyCart(page);
+    // -------------------------------------------------------------------------
+    // Test Steps
+    // -------------------------------------------------------------------------
 
 
+    await test.step('Start order and pick location', async () => {
+      await page.goto('https://dev.smashburger.com/');
+      await home.StartOrder(page);
+      await home.PickLocation(page, '80246');
+    });
 
+    await test.step('Select category & item', async () => {
+      await menu.SelectCategory(page, menu_cetegory_locators.Smashburgers);
+      await menu.SelectItem(page, menu_item_locators.SMOKED_BRISKET_BACON_SMASH);
+    });
 
+    await test.step('Calculate item price & add to order', async () => {
+      PriceInMenu = await menu.CalculatePrice(page);
+      ItemSelectionsNumber[0] = 1;
+      expectedSubTotal = PriceInMenu * ItemSelectionsNumber[0];
+      const item1 = await menu.AddToOrder(page);
+      ItemSelectedNames.push(item1);
+    });
 
+    await test.step('Proceed to checkout and verify cart subtotal', async () => {
+      await menu.ProceedToCheckout(page);
+      await cart.WaitForPriceUpdate(page);
+      await cart.VerifySubTotalPriceInCart(page, expectedSubTotal);
+    });
 
+    await test.step('Capture cart items', async () => {
+      CartItems = await cart.GetCartItems(page);
+      console.log("Items in cart:", CartItems.names);
+      console.log("Prices in cart:", CartItems.prices);
+    });
 
-  // Capture end time and calculate duration
-  endTime = Date.now();
-  navigationTime = endTime - startTime;
-  finalUrl = page.url();
-  
+    await test.step('Validate cart item count', async () => {
+      if (CartItems.names.length !== ItemSelectedNames.length) {
+        throw new Error(`Mismatch in expected vs actual cart item count`);
+      }
+      for (const itemName of ItemSelectedNames) {
+        if (!CartItems.names.includes(itemName)) {
+          throw new Error(`Item "${itemName}" not found in cart`);
+        }
+      }
+    });
 
-  // These variables can now be used for logging, assertions, or other calculations.
-  console.log(`The navigation and click took ${navigationTime} milliseconds.`);
-  console.log(`The final URL is: ${finalUrl}`);
-  
+    await test.step('Checkout page validations', async () => {
+      await cart.Checkout(page);
+      await checkout.VerifyCheckoutPageLoaded(page);
+      await checkout.verifyCheckoutAddress(page, "Glendale", "80246");
+      await checkout.verifyCheckoutItems(page, CartItems.names, CartItems.prices);
+    });
 
-  // Example assertion using a calculated variable
-  //expect(navigationTime).toBeLessThan(60000); // Expect the process to take less than 20 seconds
+    await test.step('Sign in and fill payment info', async () => {
+      await checkout.SignInDuringCheckout(page, 'dareenghoniem141@yahoo.com', 'D1234567m_');
+      await checkout.FillCheckoutPaymentDetails(page, '4727 8573 1154 5385', '01/29', '476', '80246');
+      await checkout.WaitForPaymentBoxToClose(page);
+      await checkout.VerifyCardEnteredCorrectly(page);
+      await checkout.CheckCheckoutErrors(page);
+    });
 
-  // This prevents errors from background requests that are still
-  // in-flight when the test finishes.
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
-});
+    await test.step('Place order and verify confirmation', async () => {
+      await checkout.PlaceOrder(page);
+      await checkout.WaitForOrderCompletion(page);
+      await confirm.OrderPlacedSuccessfully(page);
+    });
+
+  }
+);
+

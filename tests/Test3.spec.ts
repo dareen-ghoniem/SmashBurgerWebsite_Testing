@@ -1,80 +1,176 @@
-import { test, expect } from '@playwright/test';
-import { Home } from './Home/Home';
-import { Menu } from './Menu/Menu';
-import { Cart } from './Cart/Cart';
-import { HomeLocators } from './Locators/Locators';
-import { Menu_CetegoryLocators } from './Locators/Locators';
-import { Menu_ItemLocators } from './Locators/Locators';
-import { CartLocators } from './Locators/Locators';
-import { CheckoutLocators } from './Locators/Locators';
-import { Checkout } from './Checkout/Checkout';
-import { OrderConfirmation } from './OrderConfirmation/OrderConfirmation';
-import { OrderConfirmationLocators } from './Locators/Locators';
-import { Console, time } from 'console';
+import { test, expect } from './Fixtures.ts';
 
-test('Add Multiple Inputs', async ({ page }) => {
+test(
+  '@regression @cart Modify Quantity of Items in Cart',
+  {
+    annotation: [
+      {
+        type: 'author',
+        description: 'Dareen Ghoniem'
+      },
+      {
+        type: 'description',
+        description:
+          'Validates modifying item quantities in cart, recalculating subtotal, and completing checkout.'
+      },
+      {
+        type: 'preconditions',
+        description:
+          'User can navigate to Smashburger dev site, start an order, and select a location.'
+      },
+      {
+        type: 'expectedResults',
+        description:
+          'Subtotal updates correctly after quantity changes; cart displays updated values; checkout succeeds.'
+      }
+    ]
+  },
 
-    test.setTimeout(120000);
-    await page.unrouteAll({ behavior: 'ignoreErrors' });
-    await page.goto('https://dev.smashburger.com/');
-    //new page object model classes
-    const home = new Home();
-    const MyMenu = new Menu();
-    const MyCart = new Cart();
-    const MyCheckout = new Checkout();
-    const MyOrderConfirmation = new OrderConfirmation();
-    var PriceInMenu: number;
-    var expectedSubTotal: number;
-    var ItemSelectionsNumber: number[] = []; //number of selections made for the create your own burger 
-    var ItemSelectedNames: string[] = [];
-    var CartItems = {
-        names: [] as string[],
-        prices: [] as number[]
-    };
-    var CheckoutItems = {
-        names: [] as string[],
-        prices: [] as number[]
-    };
+  async (
+    { page, home, menu, cart, checkout, confirm, test_data, menu_cetegory_locators, menu_item_locators },
+    testInfo
+  ) => {
 
-    // Use the page object model methods
-    await home.StartOrder(page);
-    await home.PickLocation(page, '80246');
-    //menu actions
-    await MyMenu.SelectCategory(page, Menu_CetegoryLocators.Chicken);
-    await MyMenu.SelectItem(page, Menu_ItemLocators.Crispy_Chicken_Sandwich);
-    PriceInMenu = await MyMenu.CalculatePrice(page);
-    ItemSelectionsNumber[0] = 1;
-    console.log('Price in Menu is: ' + PriceInMenu);
-    expectedSubTotal = (PriceInMenu * ItemSelectionsNumber[0]);
-    console.log('Expected SubTotal is: ' + expectedSubTotal);
-    const item1 = await MyMenu.AddToOrder(page);
-    ItemSelectedNames.push(item1);
-    await MyMenu.ReturnToMenu(page);
-    await MyMenu.SelectCategory(page, Menu_CetegoryLocators.Chicken);
-    await MyMenu.SelectItem(page, Menu_ItemLocators.Scorchin_Hot_Crispy_Chicken_Sandwich);
-    PriceInMenu = await MyMenu.CalculatePrice(page);
-    ItemSelectionsNumber[1] = 1;
-    console.log('Price in Menu is: ' + PriceInMenu);
-    expectedSubTotal = expectedSubTotal + (PriceInMenu * ItemSelectionsNumber[1]);
-    console.log('Expected SubTotal is: ' + expectedSubTotal);
-    const item2 = await MyMenu.AddToOrder(page);
-    ItemSelectedNames.push(item2);
-    await MyMenu.ProceedToCheckout(page);
-    //Cart actions
-    await page.waitForTimeout(6000);
-    console.log('expected subtotal before verifying in cart: ' + expectedSubTotal);
-    await MyCart.VerifySubTotalPriceInCart(page, expectedSubTotal);
-    CartItems = await MyCart.GetCartItems(page);
-    console.log('Items in Cart: ' + CartItems.names.join(', '));
-    console.log('Prices in Cart: ' + CartItems.prices.join(', '));
-    
-    if (CartItems.names.length !== ItemSelectedNames.length) {
-        throw new Error(`Number of items in cart (${CartItems.names.length}) does not match number of items selected (${ItemSelectedNames.length})`);
-    }
-    for (const itemName of ItemSelectedNames) {
+    // -----------------------------------------------------------
+    // Test Variables
+    // -----------------------------------------------------------
+    let PriceInMenu: number;
+    let expectedSubTotal: number;
+    let item1: string;
+    const ItemSelectionsNumber: number[] = [];
+    const ItemSelectedNames: string[] = [];
+    const IncreaseTimes = 3;
+    const DecreaseTimes = 1;
+
+    let CartItems = { names: [] as string[], prices: [] as number[] };
+
+    // -----------------------------------------------------------
+    // Steps
+    // -----------------------------------------------------------
+
+    await test.step('Start order & pick location', async () => {
+      await page.goto('https://dev.smashburger.com/');
+      await home.StartOrder(page);
+      await home.PickLocation(page, '80246');
+    });
+
+    /** ---------------------------------------------------------
+     * SELECT ITEM & INCREASE QUANTITY
+     ----------------------------------------------------------*/
+    await test.step('Select item and increase quantity', async () => {
+      await menu.SelectCategory(page, menu_cetegory_locators.Chicken);
+      await menu.SelectItem(page, menu_item_locators.Crispy_Chicken_Sandwich);
+
+      ItemSelectionsNumber[0] = await menu.IncreaseItemQuantity(page, IncreaseTimes);
+
+      PriceInMenu = await menu.CalculatePrice(page);
+      expectedSubTotal = PriceInMenu * ItemSelectionsNumber[0];
+      console.log('Expected subtotal before checkout:', expectedSubTotal);
+
+      item1 = await menu.AddToOrder(page);
+      ItemSelectedNames.push(item1);
+    });
+
+    /** ---------------------------------------------------------
+     * GO TO CART & VALIDATE INITIAL SUBTOTAL
+     ----------------------------------------------------------*/
+    await test.step('Proceed to checkout and validate initial subtotal', async () => {
+      await menu.ProceedToCheckout(page);
+
+      await cart.WaitForPriceUpdate(page);
+
+      await cart.VerifySubTotalPriceInCart(page, expectedSubTotal);
+
+      CartItems = await cart.GetCartItems(page);
+      console.log('Cart items before edit:', CartItems.names);
+    });
+
+    /** ---------------------------------------------------------
+     * MODIFY QUANTITY (DECREASE) & REVALIDATE SUBTOTAL
+     ----------------------------------------------------------*/
+    await test.step('Decrease item quantity and validate updated subtotal', async () => {
+      const priceBefore = await cart.GetItemPriceInCart(page, item1);
+      await cart.DecreaseItemQuantity(page, item1, DecreaseTimes);
+      await expect(async () => {
+        const priceAfter = await cart.GetItemPriceInCart(page, item1);
+        expect(priceAfter).toBeLessThan(priceBefore);
+      }).toPass({ timeout: 5000 });
+      //console.log(`Item quantity for "${item1}" before decrease: ${ItemQuantityBefore}, after decrease: ${ItemQuantityAfter}`);
+
+
+      // update expected subtotal after decrease
+      ItemSelectionsNumber[0] = ItemSelectionsNumber[0] - DecreaseTimes;
+      page.waitForTimeout(2000);
+
+
+
+      await cart.WaitForPriceUpdate(page);
+
+      expectedSubTotal = PriceInMenu * ItemSelectionsNumber[0];
+      console.log('Expected subtotal after edit:', expectedSubTotal);
+
+      await cart.VerifySubTotalPriceInCart(page, expectedSubTotal);
+
+      CartItems = await cart.GetCartItems(page);
+      console.log('Cart items after edit:', CartItems.names);
+    });
+
+    /** ---------------------------------------------------------
+     * VALIDATE CART ITEM COUNT
+     ----------------------------------------------------------*/
+    await test.step('Validate cart item count', async () => {
+      if (CartItems.names.length !== ItemSelectedNames.length) {
+        throw new Error(
+          `Mismatch in expected vs actual cart item count`
+        );
+      }
+
+      for (const itemName of ItemSelectedNames) {
         if (!CartItems.names.includes(itemName)) {
-            throw new Error(`Item "${itemName}" not found in cart`);
+          throw new Error(`Item "${itemName}" not found in cart`);
         }
-    }
-    await MyCart.Checkout(page);
-});
+      }
+    });
+
+    /** ---------------------------------------------------------
+     * CHECKOUT PAGE VALIDATION
+     ----------------------------------------------------------*/
+    await test.step('Checkout page validations', async () => {
+      await cart.Checkout(page);
+
+      await checkout.VerifyCheckoutPageLoaded(page);
+      await checkout.verifyCheckoutAddress(page, 'Glendale', '80246');
+      await checkout.verifyCheckoutItems(page, CartItems.names, CartItems.prices);
+    });
+
+    /** ---------------------------------------------------------
+     * PAYMENT
+     ----------------------------------------------------------*/
+    await test.step('Sign in and enter payment details', async () => {
+      await checkout.SignInDuringCheckout(page, 'dareenghoniem141@yahoo.com', 'D1234567m_');
+
+      await checkout.FillCheckoutPaymentDetails(
+        page,
+        '4727 8573 1154 5385',
+        '01/29',
+        '476',
+        '80246'
+      );
+
+
+      await checkout.WaitForPaymentBoxToClose(page);
+      await checkout.VerifyCardEnteredCorrectly(page);
+      await checkout.CheckCheckoutErrors(page);
+    });
+
+    /** ---------------------------------------------------------
+     * PLACE ORDER
+     ----------------------------------------------------------*/
+    await test.step('Place order and verify confirmation', async () => {
+      await checkout.PlaceOrder(page);
+      await checkout.WaitForOrderCompletion(page);
+      await confirm.OrderPlacedSuccessfully(page);
+    });
+
+  }
+);
